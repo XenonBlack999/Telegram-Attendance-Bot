@@ -1,98 +1,94 @@
-# 🕒 Telegram Attendance Bot | 出勤管理机器人
+# 🕒 Telegram Attendance Bot
 
-A simple **Telegram Bot** for managing staff attendance with buttons for **Work In, Work Out, Break, Smoking, and Back**.  
-一个简易的 **Telegram 出勤管理机器人**，通过按钮实现 **上班、下班、休息、抽烟、返回** 等考勤操作。  
-
----
-
-## ✨ Features 功能特点
-- ✅ Inline buttons for easy staff usage  
-  内嵌按钮，员工使用更方便  
-- ✅ Track work time, breaks, and smoking time  
-  记录上班时长、休息时间、抽烟时间  
-- ✅ Auto-generate daily attendance report (CSV)  
-  自动生成每日考勤报表 (CSV)  
-- ✅ User-friendly messages with timestamps  
-  提供详细的时间戳提示信息  
+一个用于 **打卡上班、下班、抽烟、休息** 的 Telegram 机器人。  
+支持自动生成日报表（CSV 格式），并在群组中自动推送。  
 
 ---
 
-## 📦 Installation 安装步骤
+## 🌏 语言 (Languages)
 
-1. Clone this repository  
-   克隆本仓库  
-   ```bash
-   git clone https://github.com/yourusername/telegram-attendance-bot.git
-   cd telegram-attendance-bot
-   ```
+### 🇲🇲 မြန်မာဘာသာ (Myanmar)
+ဒီ Bot က Telegram မှာ **အလုပ်ဝင်၊ အလုပ်ထွက်၊ စားသောက်နား၊ ဆေးလိပ်time** စတဲ့ အချိန်စာရင်းသိမ်းဆည်းပေးမယ်။  
+နောက်ပြီး CSV report ကို generate လုပ်ပေးပြီး၊ အချိန်ကြိုတင်ပြီး Group ထဲကို စာတိုက်ပေးနိုင်တယ်။  
 
-2. Create a virtual environment and install dependencies  
-   创建虚拟环境并安装依赖  
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+### 🇬🇧 English
+This bot helps you **track work attendance** (Work In / Work Out / Break / Smoking) inside Telegram.  
+It automatically generates **CSV reports** and can send **daily summaries** to a group.  
 
-3. Create a bot using [BotFather](https://t.me/botfather) and get your **API Token**  
-   在 [BotFather](https://t.me/botfather) 创建机器人并获取 **API Token**  
+### 🇷🇺 Русский (Russian)
+Этот бот помогает **отслеживать рабочее время** (Начало работы / Конец работы / Перерыв / Курение) в Telegram.  
+Он автоматически создаёт **отчёты CSV** и может отправлять **ежедневные отчёты** в группу.  
 
-4. Edit the `bot.py` file and replace with your token  
-   修改 `bot.py` 文件，将 `token` 替换为你的机器人 Token  
+### 🇨🇳 中文 (Chinese)
+这个机器人可以在 Telegram 中进行 **上班 / 下班 / 休息 / 抽烟** 打卡。  
+它会自动生成 **CSV 报表**，并每天向群组发送 **日报告**。  
 
 ---
 
-## ▶️ Usage 使用方法
+## 🚀 功能 (Features)
+- ✅ 上班 / 下班 打卡  
+- ✅ 休息 / 抽烟 计时（45分钟限制）  
+- ✅ 自动统计每天工作时长  
+- ✅ CSV 报表导出  
+- ✅ 自动群组推送日报  
 
-Run the bot 启动机器人:
+---
+
+## ⚙️ 安装步骤 (Installation)
+
+### 1️⃣ 克隆项目 (Clone project)
 ```bash
-python3 bot.py
+https://github.com/XenonBlack999/Telegram-Attendance-Bot
+cd attendance-bot
 ```
 
-In your Telegram group or chat:  
-在你的 Telegram 群组或私聊中：
-
-- `/start` → Show the menu (Work In, Work Out, Break, Smoking, Back)  
-  显示菜单（上班、下班、休息、抽烟、返回）  
-- `/report` → Generate and send today’s attendance report (CSV file)  
-  生成并发送今日的考勤报表（CSV 文件）  
-
----
-
-## 📂 Example 按钮示例
-
-When you type `/start`, you will see:  
-输入 `/start` 后，你会看到：
-
-```
-[ Work In ]   [ Work Out ]
-[ Break ]     [ Smoking ]
-[ Back ]
+### 2️⃣ 安装依赖 (Install dependencies)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
----
+### 3️⃣ 配置 Token (Set Telegram Bot Token)
+在 `main.py` 里替换：
+```python
+token = "YOUR_BOT_TOKEN"
+```
 
-## 📊 Attendance Report 报表示例
-
-CSV file example 输出报表示例：
-```csv
-Name,User ID,Total Work Hours,Break Count,Break Time,Smoking Count,Smoking Time
-Alice,123456,8 hours 15 minutes,2,30 minutes,1,10 minutes
-Bob,789012,7 hours 45 minutes,1,15 minutes,2,20 minutes
+### 4️⃣ 启动 Bot (Run the bot)
+```bash
+python main.py
 ```
 
 ---
 
-## ⚠️ Notes 注意事项
-- Bot must be added as **Admin** in the group  
-  机器人必须设置为群组 **管理员**  
-- Reports are stored locally as CSV files  
-  报表以 CSV 文件形式保存在本地  
-- Tested on `python-telegram-bot v20+`  
-  已在 `python-telegram-bot v20+` 环境下测试  
+## 📊 使用方法 (Usage)
+
+- `/start` → 打开菜单按钮  
+- 点击按钮：  
+  - 🟢 上班  
+  - 🔴 下班  
+  - ☕ 休息  
+  - 🚬 抽烟  
+  - 🔙 返回工作  
+- `/report` → 生成 CSV 报表  
 
 ---
 
-## 📜 License 许可证
-MIT License. Free to use and modify.  
-MIT 协议，自由使用与修改。  
+## 📝 报表示例 (CSV Report Example)
+| 姓名 | 用户ID | 总工作时间 | 休息次数 | 休息时间 | 抽烟次数 | 抽烟时间 |
+|------|--------|------------|----------|----------|----------|----------|
+| 张三 | 123456 | 07小时30分 | 2 | 00小时40分 | 1 | 00小时10分 |
+
+---
+
+## 📌 注意事项 (Notes)
+- 如果工作不足 **8小时** → ⚠️ 会自动警告  
+- 连续工作超过 **24小时** → ⏰ 系统会自动重置并提醒休息  
+- 抽烟/休息默认时长 **45分钟**  
+
+---
+
+## 👨‍💻 作者 (Author)
+- 你可以自由修改和二次开发  
+- 如果好用，请给个 ⭐ Star 支持  
