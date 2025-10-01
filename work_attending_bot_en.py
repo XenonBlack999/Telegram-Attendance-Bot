@@ -267,7 +267,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # Main
 # ------------------------------------------------------------
 def main():
-    token = "7830166364:AAHy9AJT_ysJaM5OCWph4zF2NuroqJyXTEw" 
+    token = "YOUR_BOT_TOKEN" 
 
     # Use custom HTTPX request with longer timeout
     request = HTTPXRequest(connect_timeout=30, read_timeout=30)
