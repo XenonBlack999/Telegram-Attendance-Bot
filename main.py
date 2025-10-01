@@ -1,6 +1,7 @@
 import logging
 import csv
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo   # ✅ Import timezone support
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -9,6 +10,11 @@ from telegram.ext import (
     ContextTypes,
 )
 from telegram.request import HTTPXRequest
+
+# ------------------------------------------------------------
+# Timezone (set to Asia/Yangon)
+# ------------------------------------------------------------
+YANGON_TZ = ZoneInfo("Asia/Yangon")
 
 # ------------------------------------------------------------
 # Logging setup
@@ -24,6 +30,10 @@ attendance = {}
 # ------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------
+def now_yangon():
+    """Return current time in Asia/Yangon timezone"""
+    return datetime.now(YANGON_TZ)
+
 def init_user(user_id, user_name="Unknown"):
     if user_id not in attendance:
         attendance[user_id] = {
@@ -48,7 +58,7 @@ def format_duration(td: timedelta):
 
 
 def log_activity(user_id, action, user_name="Unknown"):
-    now = datetime.now()
+    now = now_yangon()   # ✅ Use Yangon time
     user_data = init_user(user_id, user_name)
 
     # ---------------- Work In ----------------
@@ -233,7 +243,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    filename = f"attendance_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"attendance_{now_yangon().strftime('%Y%m%d')}.csv"  # ✅ Yangon date
     with open(filename, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["Name", "User ID", "Total Work Hours", "Break Count", "Break Time", "Smoking Count", "Smoking Time"])
@@ -267,7 +277,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # Main
 # ------------------------------------------------------------
 def main():
-    token = "7830166364:AAHy9AJT_ysJaM5OCWph4zF2NuroqJyXTEw" 
+    token = "7830166364:AAHy9AJT_ysJaM5OCWph4zF2NuroqJyXTEw"
 
     # Use custom HTTPX request with longer timeout
     request = HTTPXRequest(connect_timeout=30, read_timeout=30)
