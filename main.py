@@ -2,6 +2,7 @@ import logging
 import csv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -12,7 +13,7 @@ from telegram.ext import (
 from telegram.request import HTTPXRequest
 
 # ------------------------------------------------------------
-# Timezone (set to Asia/Yangon)
+# Timezone
 # ------------------------------------------------------------
 YANGON_TZ = ZoneInfo("Asia/Yangon")
 
@@ -26,6 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 attendance = {}
+group_chat_id = None   # <-- auto detected group chat id
 
 # ------------------------------------------------------------
 # Helpers
@@ -54,38 +56,52 @@ def format_duration(td: timedelta):
     minutes, seconds = divmod(remainder, 60)
     return f"{hours} hours {minutes:02d} minutes {seconds:02d} seconds"
 
-def check_24_hours_limit(user_data, user_name, user_id):
-    """Check if total work time reached 24 hours, reset and offwork"""
-    if user_data["total_time"] >= timedelta(hours=24):
-        user_data["status"] = "offwork"
-        user_data["last_start"] = None
-        user_data["total_time"] = timedelta()  # reset for next day
-        return (
-            f"User: {user_name}\n"
-            f"User ID: {user_id}\n"
-            f"⚠️ You already worked 24 hours today!\n"
-            f"Please take a break and rest. Your work time is reset for tomorrow."
-        )
-    return None
-
+# ------------------------------------------------------------
+# Core Logic
+# ------------------------------------------------------------
 def log_activity(user_id, action, user_name="Unknown"):
     now = now_yangon()
     user_data = init_user(user_id, user_name)
 
+    # check 24h auto reset
+    if user_data["total_time"] >= timedelta(hours=24):
+        user_data["total_time"] = timedelta()
+        user_data["status"] = "offwork"
+        return (
+            f"User: {user_name}\n"
+            f"User ID: {user_id}\n"
+            f"⚠️ You have worked 24 hours in one day!\n"
+            f"System has reset your work time.\n"
+            f"Please take a rest today."
+        )
+
     # ---------------- Work In ----------------
     if action == "work_in":
         if user_data["status"] == "working":
-            return f"⚠️ {user_name}, you are already clocked in!"
-
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"⚠️ You are already clocked in!"
+            )
         user_data["status"] = "working"
         user_data["last_start"] = now
         user_data["records"].append(("Work In", now, None))
-        return f"✅ Work In success at {now.strftime('%m/%d %H:%M:%S')}"
+        return (
+            f"User: {user_name}\n"
+            f"User ID: {user_id}\n"
+            f"✅ Clock-in Success: Work In - {now.strftime('%m/%d %H:%M:%S')}\n"
+            f"Note: Have a nice day!"
+        )
 
     # ---------------- Work Out ----------------
     elif action == "work_out":
         if user_data["status"] == "idle":
-            return "⚠️ You must clock-in with Work In first."
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"⚠️ Cannot clock out!\n"
+                f"Reason: You must clock-in with Work In first."
+            )
 
         if user_data["last_start"]:
             duration = now - user_data["last_start"]
@@ -95,72 +111,136 @@ def log_activity(user_id, action, user_name="Unknown"):
         user_data["status"] = "offwork"
         user_data["last_start"] = None
 
-        # Check 24h rule
-        msg_24h = check_24_hours_limit(user_data, user_name, user_id)
-        if msg_24h:
-            return msg_24h
+        warning = ""
+        if user_data["total_time"] < timedelta(hours=8):
+            warning = "\n⚠️ Warning: Less than 8 hours worked today!"
 
         return (
-            f"✅ Work Out success at {now.strftime('%m/%d %H:%M:%S')}\n"
-            f"Total Work Today: {format_duration(user_data['total_time'])}\n"
-            f"Breaks: {user_data['break_count']} → {format_duration(user_data['break_time'])}\n"
-            f"Smoking: {user_data['smoking_count']} → {format_duration(user_data['smoking_time'])}"
+            f"User: {user_name}\n"
+            f"User ID: {user_id}\n"
+            f"✅ Clock-out Success: Work Out - {now.strftime('%m/%d %H:%M:%S')}\n"
+            f"Note: Thank you for your hard work!\n"
+            f"Today's total work: {format_duration(user_data['total_time'])}\n"
+            f"Pure work time: {format_duration(user_data['total_time'])}\n"
+            f"------------------------\n"
+            f"Total break time today: {format_duration(user_data['break_time'])}\n"
+            f"Break count today: {user_data['break_count']} times\n"
+            f"Total smoking time today: {format_duration(user_data['smoking_time'])}\n"
+            f"Smoking count today: {user_data['smoking_count']} times"
+            f"{warning}"
         )
 
     # ---------------- Smoking ----------------
     elif action == "smoking":
         if user_data["status"] != "working":
-            return "⚠️ You must be working before Smoking."
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"⚠️ You must be working before starting Smoking."
+            )
+        # add worked time before break
+        if user_data["last_start"]:
+            user_data["total_time"] += now - user_data["last_start"]
 
         user_data["smoking_count"] += 1
         user_data["status"] = "smoking"
         user_data["last_start"] = now
         user_data["records"].append(("Smoking", now, None))
-        return f"✅ Smoking break started at {now.strftime('%m/%d %H:%M:%S')}"
+        return (
+            f"User: {user_name}\n"
+            f"User ID: {user_id}\n"
+            f"✅ Clock-in Success: Smoking - {now.strftime('%m/%d %H:%M:%S')}\n"
+            f"Note: This is your {user_data['smoking_count']} smoking break\n"
+            f"Reminder: Please clock-in 'Back' after finishing.\n"
+            f"Back: /back"
+        )
 
     # ---------------- Break ----------------
     elif action == "break":
         if user_data["status"] != "working":
-            return "⚠️ You must be working before Break."
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"⚠️ You must be working before starting Break."
+            )
+        # add worked time before break
+        if user_data["last_start"]:
+            user_data["total_time"] += now - user_data["last_start"]
 
         user_data["break_count"] += 1
         user_data["status"] = "break"
         user_data["last_start"] = now
         user_data["records"].append(("Break", now, None))
-        return f"✅ Break started at {now.strftime('%m/%d %H:%M:%S')}"
+        return (
+            f"User: {user_name}\n"
+            f"User ID: {user_id}\n"
+            f"✅ Clock-in Success: Break - {now.strftime('%m/%d %H:%M:%S')}\n"
+            f"Note: This is your {user_data['break_count']} break\n"
+            f"Reminder: Please clock-in 'Back' after finishing.\n"
+            f"Back: /back"
+        )
 
     # ---------------- Back ----------------
     elif action == "back":
+        if user_data["status"] == "idle":
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"Status: ❌ Back clock-in failed!\n"
+                f"Reason: You have not started working\n"
+                f"Suggestion: Please clock-in with Work In first"
+            )
         if user_data["status"] not in ["smoking", "break"]:
-            return "⚠️ You must be on Break/Smoking before Back."
-
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"Status: ❌ Back clock-in failed!\n"
+                f"Reason: You have no ongoing activity\n"
+                f"You can ————\n"
+                f"Break\n"
+                f"Smoking"
+            )
+        # valid back
         activity_type = user_data["status"]
         if user_data["last_start"]:
             duration = now - user_data["last_start"]
-
             if activity_type == "smoking":
                 user_data["smoking_time"] += duration
                 user_data["records"].append(("Smoking Ended", user_data["last_start"], now, duration))
-
+                activity_label = "Smoking"
+                total_today = user_data["smoking_time"]
+                count_today = user_data["smoking_count"]
             elif activity_type == "break":
                 user_data["break_time"] += duration
                 user_data["records"].append(("Break Ended", user_data["last_start"], now, duration))
+                activity_label = "Break"
+                total_today = user_data["break_time"]
+                count_today = user_data["break_count"]
 
-        # ⚠️ FIX: Do NOT reset work time, only change status back to working
-        user_data["status"] = "working"
-        user_data["last_start"] = now  # resume working from now
-
-        # Check 24h rule
-        msg_24h = check_24_hours_limit(user_data, user_name, user_id)
-        if msg_24h:
-            return msg_24h
-
-        return f"✅ Back to work at {now.strftime('%m/%d %H:%M:%S')}"
+            user_data["status"] = "working"
+            user_data["last_start"] = now
+            return (
+                f"User: {user_name}\n"
+                f"User ID: {user_id}\n"
+                f"✅ {now.strftime('%m/%d %H:%M:%S')} Back clock-in success: {activity_label}\n"
+                f"Note: This activity has been recorded\n"
+                f"Duration this activity: {format_duration(duration)}\n"
+                f"Total {activity_label.lower()} time today: {format_duration(total_today)}\n"
+                f"Total activity time today: {format_duration(total_today)}\n"
+                f"------------------------\n"
+                f"Today's {activity_label.lower()}: {count_today} times"
+            )
 
 # ------------------------------------------------------------
 # Bot Handlers
 # ------------------------------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global group_chat_id
+    # auto detect group chat id
+    if update.message.chat.type in ["group", "supergroup"]:
+        group_chat_id = update.message.chat_id
+        logger.info(f"Auto-detected group chat id: {group_chat_id}")
+
     keyboard = [
         [InlineKeyboardButton("Work In", callback_data="work_in"),
          InlineKeyboardButton("Work Out", callback_data="work_out")],
@@ -185,27 +265,55 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         writer.writerow(["Name", "User ID", "Total Work Hours", "Break Count", "Break Time", "Smoking Count", "Smoking Time"])
         for uid, data in attendance.items():
             writer.writerow([
-                data["name"],
-                uid,
+                data["name"], uid,
                 format_duration(data["total_time"]),
-                data["break_count"],
-                format_duration(data["break_time"]),
-                data["smoking_count"],
-                format_duration(data["smoking_time"]),
+                data["break_count"], format_duration(data["break_time"]),
+                data["smoking_count"], format_duration(data["smoking_time"]),
             ])
     await update.message.reply_document(open(filename, "rb"))
     await update.message.reply_text("📊 Attendance report generated.")
 
 # ------------------------------------------------------------
-# Global Error Handler
+# Scheduled Reports
 # ------------------------------------------------------------
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    logger.error("Exception while handling an update:", exc_info=context.error)
-    try:
-        if update and hasattr(update, "message") and update.message:
-            await update.message.reply_text("⚠️ A network error occurred. Please try again later.")
-    except Exception:
-        pass
+async def send_daily_report(app):
+    if not group_chat_id:
+        return
+    if not attendance:
+        return
+    lines = ["📊 Daily Report:"]
+    for uid, data in attendance.items():
+        lines.append(
+            f"{data['name']} ({uid}) - Work: {format_duration(data['total_time'])}, "
+            f"Breaks: {data['break_count']}, Smoking: {data['smoking_count']}"
+        )
+    await app.bot.send_message(group_chat_id, "\n".join(lines))
+
+async def send_monthly_report(app):
+    if not group_chat_id:
+        return
+    lines = ["📊 Monthly Report:"]
+    for uid, data in attendance.items():
+        lines.append(
+            f"{data['name']} ({uid}) - Work: {format_duration(data['total_time'])}, "
+            f"Breaks: {data['break_count']}, Smoking: {data['smoking_count']}"
+        )
+    await app.bot.send_message(group_chat_id, "\n".join(lines))
+
+async def daily_scheduler(app):
+    global attendance
+    while True:
+        now = now_yangon()
+        if now.hour == 14 and now.minute == 0:  # 2PM
+            await send_daily_report(app)
+        if now.hour == 15 and now.minute == 0:  # 3PM reset
+            await send_daily_report(app)
+            attendance.clear()
+            if group_chat_id:
+                await app.bot.send_message(group_chat_id, "✅ Daily reset done.")
+        if now.day == 15 and now.hour == 15 and now.minute == 0:  # 15th monthly
+            await send_monthly_report(app)
+        await asyncio.sleep(60)
 
 # ------------------------------------------------------------
 # Main
@@ -218,7 +326,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button))
     app.add_handler(CommandHandler("report", report))
-    app.add_error_handler(error_handler)
+
+    loop = asyncio.get_event_loop()
+    loop.create_task(daily_scheduler(app))
 
     logger.info("Bot started...")
     app.run_polling()
