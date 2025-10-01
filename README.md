@@ -9,7 +9,7 @@
 
 ### 🇲🇲 မြန်မာဘာသာ (Myanmar)
 ဒီ Bot က Telegram မှာ **အလုပ်ဝင်၊ အလုပ်ထွက်၊ စားသောက်နား၊ ဆေးလိပ်time** စတဲ့ အချိန်စာရင်းသိမ်းဆည်းပေးမယ်။  
-နောက်ပြီး CSV report ကို generate လုပ်ပေးပြီး၊ အချိန်ကြိုတင်ပြီး Group ထဲကို စာတိုက်ပေးနိုင်တယ်။  
+နောက်ပြီး CSV report ကို generate လုပ်ပေးပြီး၊ အချိန်ကြိုတင်ပြီး Group ထဲကို sentပေးနိုင်တယ်။  
 
 ### 🇬🇧 English
 This bot helps you **track work attendance** (Work In / Work Out / Break / Smoking) inside Telegram.  
