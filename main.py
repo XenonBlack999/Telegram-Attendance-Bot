@@ -304,9 +304,9 @@ async def daily_scheduler(app):
     global attendance
     while True:
         now = now_yangon()
-        if now.hour == 14 and now.minute == 0:  # 2PM
+        if now.hour == 2 and now.minute == 0:  # 2PM
             await send_daily_report(app)
-        if now.hour == 15 and now.minute == 0:  # 3PM reset
+        if now.hour == 3 and now.minute == 0:  # 3PM reset
             await send_daily_report(app)
             attendance.clear()
             if group_chat_id:
