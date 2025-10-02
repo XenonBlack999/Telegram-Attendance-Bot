@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 attendance = {}
-group_chat_id = None   # <-- auto detected group chat id
+group_chat_id = None   # auto detected group chat id
 
 # ------------------------------------------------------------
 # Helpers
@@ -55,6 +55,13 @@ def format_duration(td: timedelta):
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours} hours {minutes:02d} minutes {seconds:02d} seconds"
+
+def get_total_work_time(user_data):
+    """Return total work time including current ongoing session if working."""
+    total = user_data["total_time"]
+    if user_data["status"] == "working" and user_data["last_start"]:
+        total += now_yangon() - user_data["last_start"]
+    return total
 
 # ------------------------------------------------------------
 # Core Logic
@@ -112,7 +119,7 @@ def log_activity(user_id, action, user_name="Unknown"):
         user_data["last_start"] = None
 
         warning = ""
-        if user_data["total_time"] < timedelta(hours=8):
+        if get_total_work_time(user_data) < timedelta(hours=8):
             warning = "\n⚠️ Warning: Less than 8 hours worked today!"
 
         return (
@@ -120,8 +127,8 @@ def log_activity(user_id, action, user_name="Unknown"):
             f"User ID: {user_id}\n"
             f"✅ Clock-out Success: Work Out - {now.strftime('%m/%d %H:%M:%S')}\n"
             f"Note: Thank you for your hard work!\n"
-            f"Today's total work: {format_duration(user_data['total_time'])}\n"
-            f"Pure work time: {format_duration(user_data['total_time'])}\n"
+            f"Today's total work: {format_duration(get_total_work_time(user_data))}\n"
+            f"Pure work time: {format_duration(get_total_work_time(user_data))}\n"
             f"------------------------\n"
             f"Total break time today: {format_duration(user_data['break_time'])}\n"
             f"Break count today: {user_data['break_count']} times\n"
@@ -266,7 +273,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for uid, data in attendance.items():
             writer.writerow([
                 data["name"], uid,
-                format_duration(data["total_time"]),
+                format_duration(get_total_work_time(data)),
                 data["break_count"], format_duration(data["break_time"]),
                 data["smoking_count"], format_duration(data["smoking_time"]),
             ])
@@ -283,8 +290,9 @@ async def send_daily_report(app):
         return
     lines = ["📊 Daily Report:"]
     for uid, data in attendance.items():
+        work_time = get_total_work_time(data)
         lines.append(
-            f"{data['name']} ({uid}) - Work: {format_duration(data['total_time'])}, "
+            f"{data['name']} ({uid}) - Work: {format_duration(work_time)}, "
             f"Breaks: {data['break_count']}, Smoking: {data['smoking_count']}"
         )
     await app.bot.send_message(group_chat_id, "\n".join(lines))
@@ -294,8 +302,9 @@ async def send_monthly_report(app):
         return
     lines = ["📊 Monthly Report:"]
     for uid, data in attendance.items():
+        work_time = get_total_work_time(data)
         lines.append(
-            f"{data['name']} ({uid}) - Work: {format_duration(data['total_time'])}, "
+            f"{data['name']} ({uid}) - Work: {format_duration(work_time)}, "
             f"Breaks: {data['break_count']}, Smoking: {data['smoking_count']}"
         )
     await app.bot.send_message(group_chat_id, "\n".join(lines))
@@ -304,14 +313,14 @@ async def daily_scheduler(app):
     global attendance
     while True:
         now = now_yangon()
-        if now.hour == 2 and now.minute == 0:  # 2PM
+        if now.hour == 2 and now.minute == 0:  # 2AM daily report
             await send_daily_report(app)
-        if now.hour == 3 and now.minute == 0:  # 3PM reset
+        if now.hour == 3 and now.minute == 0:  # 3AM reset
             await send_daily_report(app)
             attendance.clear()
             if group_chat_id:
                 await app.bot.send_message(group_chat_id, "✅ Daily reset done.")
-        if now.day == 15 and now.hour == 15 and now.minute == 0:  # 15th monthly
+        if now.day == 3 and now.hour == 3 and now.minute == 0:  # 15th monthly
             await send_monthly_report(app)
         await asyncio.sleep(60)
 
